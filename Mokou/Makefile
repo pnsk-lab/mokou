@@ -5,7 +5,7 @@ include $(PWD)/Platform/$(PLATFORM).mk
 .PHONY: all clean
 .SUFFIXES: .c .o
 
-OBJS = main.o log.o service.o util.o
+OBJS = main.o log.o service.o util.o version.o
 
 all: mokou$(EXEC)
 
