@@ -4,7 +4,7 @@
 #define __MK_SERVICE_H__
 
 struct mk_service {
-	char* name;
+	char* description;
 	char* exec;
 	char* pidfile;
 };

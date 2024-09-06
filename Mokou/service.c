@@ -17,9 +17,9 @@ void mk_service_scan(void){
 	if(services != NULL){
 		int i;
 		for(i = 0; services[i] != NULL; i++){
-			free(services[i]->name);
-			free(services[i]->exec);
-			free(services[i]->pidfile);
+			if(services[i]->description != NULL) free(services[i]->description);
+			if(services[i]->exec != NULL) free(services[i]->exec);
+			if(services[i]->pidfile != NULL) free(services[i]->pidfile);
 			free(services[i]);
 		}
 		free(services);
@@ -110,6 +110,11 @@ void mk_service_scan(void){
 						char* log = mk_strcat3("Adding ", desc == NULL ? path : desc, " to the list");
 						mk_log(log);
 						free(log);
+
+						struct mk_service* serv = malloc(sizeof(*serv));
+						serv->description = desc != NULL ? mk_strdup(desc) : NULL;
+						serv->exec = mk_strdup(exec);
+						serv->pidfile = mk_strdup(pidfile);
 					}
 
 					if(desc != NULL) free(desc);
