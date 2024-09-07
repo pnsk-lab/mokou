@@ -18,5 +18,6 @@ void mk_service_scan(void);
 int mk_start_service(const char* name);
 int mk_stop_service(const char* name);
 void mk_start_services(void);
+void mk_resurrect_services(void);
 
 #endif

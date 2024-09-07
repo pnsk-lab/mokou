@@ -7,10 +7,12 @@
 #include "mk_util.h"
 #include "mk_log.h"
 
+#include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
 #include <poll.h>
+#include <time.h>
 
 #include <sys/types.h>
 #include <sys/socket.h>
@@ -48,7 +50,6 @@ int mk_server_init(void){
 void mk_server_loop(void){
 	struct sockaddr_un cun;
 	socklen_t socklen = sizeof(cun);
-	char* ver = mk_strcat3("R", mk_get_version(), "\n");
 	char cbuf[2];
 	cbuf[1] = 0;
 	char* str = malloc(1);
@@ -56,11 +57,19 @@ void mk_server_loop(void){
 	struct pollfd pollfds[16 + 1];
 	pollfds[0].fd = server;
 	pollfds[0].events = POLLIN | POLLPRI;
+	time_t trigger = time(NULL) + 5;
 	while(1){
-		mk_log("Waiting for the connection");
 		int r = poll(pollfds, 16 + 1, 5000);
+		if(!(r > 0 && pollfds[0].revents & POLLIN)){
+			time_t t = time(NULL);
+			if(t >= trigger){
+				mk_resurrect_services();
+				trigger = time(NULL) + 5;
+			}
+			usleep(1000);
+			continue;
+		}
 		int cli = accept(server, (struct sockaddr*)&cun, &socklen);
-		send(cli, ver, strlen(ver), 0);
 		while(1){
 			if(recv(cli, cbuf, 1, 0) <= 0) break;
 			if(cbuf[0] == '\n'){
@@ -71,7 +80,7 @@ void mk_server_loop(void){
 						send(cli, mk_errors[err], strlen(mk_errors[err]), 0);
 						send(cli, "\n", 1, 0);
 					}else{
-						send(cli, "Mok\n", 4, 0);
+						send(cli, "MOk\n", 4, 0);
 					}
 				}else if(str[0] == 'D'){
 					int err = mk_stop_service(str + 1);
@@ -80,8 +89,11 @@ void mk_server_loop(void){
 						send(cli, mk_errors[err], strlen(mk_errors[err]), 0);
 						send(cli, "\n", 1, 0);
 					}else{
-						send(cli, "Mok\n", 4, 0);
+						send(cli, "MOk\n", 4, 0);
 					}
+				}else if(str[0] == 'R'){
+					mk_service_scan();
+					send(cli, "MOk\n", 4, 0);
 				}else{
 					send(cli, PROTOCOL_ERROR, strlen(PROTOCOL_ERROR), 0);
 				}
@@ -97,6 +109,5 @@ void mk_server_loop(void){
 		}
 		close(cli);
 	}
-	free(ver);
-	free(ver);
+	free(str);
 }

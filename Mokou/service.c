@@ -396,3 +396,28 @@ void mk_start_services(void){
 		mk_start_service(services[i]->name);
 	}
 }
+
+void mk_resurrect_services(void){
+	int i;
+	bool re = false;
+	for(i = 0; services[i] != NULL; i++){
+		if(!services[i]->stopped){
+			bool alive = false;
+
+			FILE* f = fopen(services[i]->pidfile, "r");
+			if(f != NULL){
+				unsigned long long pid;
+				fscanf(f, "%llu", &pid);
+				fclose(f);
+				alive = kill(pid, 0) == 0;
+			}
+			if(!alive){
+				if(!re){
+					mk_log("Resurrection");
+					re = true;
+				}
+				mk_start_service(services[i]->name);
+			}
+		}
+	}
+}
