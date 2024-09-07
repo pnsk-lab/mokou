@@ -19,6 +19,7 @@ struct mk_service** services = NULL;
 
 #ifdef __linux__
 const char* sys_signame[] = {
+	"",
 	"HUP",
 	"INT",
 	"QUIT",
@@ -200,7 +201,7 @@ void mk_service_scan(void){
 	}
 }
 
-const char* errors[] = {
+const char* mk_errors[] = {
 	"Success",
 	"No such service",
 	"Service is alive",
