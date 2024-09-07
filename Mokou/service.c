@@ -17,6 +17,43 @@
 
 struct mk_service** services = NULL;
 
+#ifdef __linux__
+const char* sys_signame[] = {
+	"HUP",
+	"INT",
+	"QUIT",
+	"ILL",
+	"TRAP",
+	"ABRT",
+	"BUS",
+	"FPE",
+	"KILL",
+	"USR1",
+	"SEGV",
+	"USR2",
+	"PIPE",
+	"ALRM",
+	"TERM",
+	"STKFLT",
+	"CHLD",
+	"CONT",
+	"STOP",
+	"TSTP",
+	"TTIN",
+	"TTOU",
+	"URG",
+	"XCPU",
+	"XFSZ",
+	"VTALRM",
+	"PROF",
+	"WINCH",
+	"POLL",
+	"PWR",
+	"SYS",
+	"RTMIN"
+};
+#endif
+
 void mk_service_scan(void){
 	if(services != NULL){
 		int i;
