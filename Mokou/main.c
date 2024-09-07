@@ -33,4 +33,6 @@ int main(int argc, char** argv){
 	mk_log(log);
 	free(log);
 	mk_service_scan();
+	mk_start_services();
+	mk_log("Mokou is up, creating the server socket");
 }

@@ -2,11 +2,15 @@
 
 #include "mk_service.h"
 
+#include <fcntl.h>
 #include <stdio.h>
 #include <dirent.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <signal.h>
+#include <unistd.h>
+#include <sys/wait.h>
 
 #include "mk_log.h"
 #include "mk_util.h"
@@ -17,6 +21,8 @@ void mk_service_scan(void){
 	if(services != NULL){
 		int i;
 		for(i = 0; services[i] != NULL; i++){
+			if(services[i]->name != NULL) free(services[i]->name);
+			if(services[i]->stop != NULL) free(services[i]->stop);
 			if(services[i]->description != NULL) free(services[i]->description);
 			if(services[i]->exec != NULL) free(services[i]->exec);
 			if(services[i]->pidfile != NULL) free(services[i]->pidfile);
@@ -52,6 +58,7 @@ void mk_service_scan(void){
 
 					char* desc = NULL;
 					char* exec = NULL;
+					char* stop = NULL;
 					char* pidfile = NULL;
 					
 					for(i = 0;; i++){
@@ -79,6 +86,9 @@ void mk_service_scan(void){
 										}else if(strcmp(key, "pidfile") == 0){
 											if(pidfile != NULL) free(pidfile);
 											pidfile = mk_strdup(value);
+										}else if(strcmp(key, "stop") == 0){
+											if(stop != NULL) free(stop);
+											stop = mk_strdup(value);
 										}
 	
 										break;
@@ -111,10 +121,32 @@ void mk_service_scan(void){
 						mk_log(log);
 						free(log);
 
+						int i;
 						struct mk_service* serv = malloc(sizeof(*serv));
+						serv->name = mk_strdup(d->d_name);
+
+						for(i = strlen(d->d_name) - 1; i >= 0; i--){
+							if(serv->name[i] == '.'){
+								serv->name[i] = 0;
+								break;
+							}
+						}
+
 						serv->description = desc != NULL ? mk_strdup(desc) : NULL;
+						serv->stop = stop != NULL ? mk_strdup(stop) : NULL;
 						serv->exec = mk_strdup(exec);
 						serv->pidfile = mk_strdup(pidfile);
+						serv->stopped = false;
+
+						struct mk_service** oldsrvs = services;
+						for(i = 0; oldsrvs[i] != NULL; i++);
+						services = malloc(sizeof(*services) * (i + 2));
+						for(i = 0; oldsrvs[i] != NULL; i++){
+							services[i] = oldsrvs[i];
+						}
+						services[i] = serv;
+						services[i + 1] = NULL;
+						free(oldsrvs);
 					}
 
 					if(desc != NULL) free(desc);
@@ -128,5 +160,201 @@ void mk_service_scan(void){
 		closedir(dir);
 	}else{
 		mk_log("Cannot open the directory.");
+	}
+}
+
+const char* errors[] = {
+	"Success",
+	"No such service",
+	"Service is alive",
+	"Failed to start",
+	"Service is dead",
+	"Bad signal",
+	"Could not stop the service"
+};
+
+int mk_stop_service(const char* name){
+	int i;
+	for(i = 0; services[i] != NULL; i++){
+		if(strcmp(services[i]->name, name) == 0){
+			struct mk_service* srv = services[i];
+			char* log = mk_strcat("Stopping ", name);
+			mk_log(log);
+			free(log);
+
+			bool alive = false;
+
+			FILE* f = fopen(srv->pidfile, "r");
+			unsigned long long pid;
+			if(f != NULL){
+				fscanf(f, "%llu", &pid);
+				fclose(f);
+				alive = kill(pid, 0) == 0;
+			}
+
+			if(!alive){
+				mk_log("Process seems to be dead, not stopping");
+				return 4;
+			}
+
+			if(srv->stop == NULL || srv->stop[0] == '#'){
+				int sig = -1;
+				if(srv->stop == NULL){
+					sig = SIGINT;
+				}
+				if(sig == -1){
+					int i;
+					for(i = 1; i < NSIG; i++){
+						if(strcmp(sys_signame[i], srv->stop + 1) == 0){
+							sig = i;
+							break;
+						}
+					}
+				}
+				if(sig == -1){
+					mk_log("Bad signal");
+					return 5;
+				}else{
+					log = mk_strcat("Sending SIG", sys_signame[sig]);
+					mk_log(log);
+					free(log);
+					bool dead = false;
+					kill(pid, sig);
+					for(i = 0; i < 3; i++){
+						if(kill(pid, 0) == -1){
+							mk_log("Process died");
+							dead = true;
+							break;
+						}else{
+							mk_log("Process is still alive");
+						}
+						if(i != 2) sleep(1);
+					}
+					if(!dead){
+						mk_log("Could not kill the process");
+						return 6;
+					}
+				}
+			}else{
+				char** pargv = malloc(sizeof(*pargv));
+				pargv[0] = NULL;
+	
+				int i;
+				int incr = 0;
+				for(i = 0;; i++){
+					if(srv->stop[i] == 0 || srv->stop[i] == ' '){
+						char* str = malloc(i - incr + 1);
+						memcpy(str, srv->stop + incr, i - incr);
+						str[i - incr] = 0;
+	
+						char** oldargv = pargv;
+						int j;
+						for(j = 0; oldargv[j] != NULL; j++);
+						pargv = malloc(sizeof(*pargv) * (j + 2));
+						for(j = 0; oldargv[j] != NULL; j++) pargv[j] = oldargv[j];
+						pargv[j] = str;
+						pargv[j + 1]  = NULL;
+						free(oldargv);
+	
+						incr = i + 1;
+						if(srv->exec[i] == 0) break;
+					}
+				}
+			}
+
+			srv->stopped = true;
+			return 0;
+		}
+	}
+	return 1;
+}
+
+int mk_start_service(const char* name){
+	int i;
+	for(i = 0; services[i] != NULL; i++){
+		if(strcmp(services[i]->name, name) == 0){
+			struct mk_service* srv = services[i];
+			char* log = mk_strcat("Starting ", name);
+			mk_log(log);
+			free(log);
+
+			bool alive = false;
+
+			FILE* f = fopen(srv->pidfile, "r");
+			if(f != NULL){
+				unsigned long long pid;
+				fscanf(f, "%llu", &pid);
+				fclose(f);
+				alive = kill(pid, 0) == 0;
+			}
+			if(alive){
+				mk_log("Process seems to be alive, not starting");
+				return 2;
+			}
+
+			char** pargv = malloc(sizeof(*pargv));
+			pargv[0] = NULL;
+
+			int i;
+			int incr = 0;
+			for(i = 0;; i++){
+				if(srv->exec[i] == 0 || srv->exec[i] == ' '){
+					char* str = malloc(i - incr + 1);
+					memcpy(str, srv->exec + incr, i - incr);
+					str[i - incr] = 0;
+
+					char** oldargv = pargv;
+					int j;
+					for(j = 0; oldargv[j] != NULL; j++);
+					pargv = malloc(sizeof(*pargv) * (j + 2));
+					for(j = 0; oldargv[j] != NULL; j++) pargv[j] = oldargv[j];
+					pargv[j] = str;
+					pargv[j + 1]  = NULL;
+					free(oldargv);
+
+					incr = i + 1;
+					if(srv->exec[i] == 0) break;
+				}
+			}
+
+			bool fail = false;
+
+			pid_t pid = fork();
+			if(pid == 0){
+				int n = open("/dev/null", O_RDWR);
+				dup2(n, 1);
+				dup2(n, 2);
+				execvp(pargv[0], pargv);
+				_exit(-1);
+			}else{
+				int status;
+				waitpid(pid, &status, 0);
+				if(WEXITSTATUS(status) != 0) fail = true;
+			}
+			for(i = 0; pargv[i] != NULL; i++) free(pargv[i]);
+			free(pargv);
+			if(fail){
+				log = mk_strcat("Failed to start ", name);
+				mk_log(log);
+				free(log);
+				srv->stopped = false;
+				return 3;
+			}else{
+				log = mk_strcat("Started ", name);
+				mk_log(log);
+				free(log);
+				srv->stopped = false;
+			}
+
+			return 0;
+		}
+	}
+	return 1;
+}
+
+void mk_start_services(void){
+	int i;
+	for(i = 0; services[i] != NULL; i++){
+		mk_start_service(services[i]->name);
 	}
 }
