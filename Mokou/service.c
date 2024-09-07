@@ -234,6 +234,8 @@ int mk_stop_service(const char* name){
 			mk_log(log);
 			free(log);
 
+			srv->stopped = true; /* No more resurrecting */
+
 			bool alive = false;
 
 			FILE* f = fopen(srv->pidfile, "r");
@@ -343,7 +345,6 @@ int mk_stop_service(const char* name){
 				return 6;
 			}
 
-			srv->stopped = true;
 			return 0;
 		}
 	}
