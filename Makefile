@@ -7,7 +7,7 @@ FLAGS = PLATFORM=$(PLATFORM) PWD=$(PWD) PREFIX=$(PREFIX)
 
 .PHONY: all clean ./Mokou ./Control
 
-all: ./Mokou ./Control
+all: ./Mokou ./Control ./Manpage/mokouctl.8
 
 ./Mokou::
 	$(MAKE) -C $@ $(FLAGS)
@@ -15,6 +15,10 @@ all: ./Mokou ./Control
 ./Control::
 	$(MAKE) -C $@ $(FLAGS)
 
+./Manpage/mokouctl.8: ./Manpage/mokouctl.8.tmp
+	sed "s%@PREFIX@%$(PREFIX)%g" ./Manpage/mokouctl.8.tmp > $@
+
 clean:
 	$(MAKE) -C ./Mokou $(FLAGS) clean
 	$(MAKE) -C ./Control $(FLAGS) clean
+	rm -f ./Manpage/mokouctl.8

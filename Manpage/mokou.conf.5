@@ -1,0 +1,27 @@
+.Dd $Mdocdate$
+.Dt MOKOU.CONF 5
+.Os
+.Sh NAME
+.Nm mokou.conf
+.Nd INI-like format for
+.Xr mokouctl 8
+services
+.Sh DESCRIPTION
+.Bl -tag
+.It exec
+Command to execute, argv0 must be a full path to the executable
+.It pidfile
+Where to store the process ID
+.It user
+Run this command as another user
+.It stop
+Use #TERM to send a signal to the process, else,
+a full path to the executable (such as
+.Xr pkill 1) 
+to stop the service
+.El
+.Sh AUTHORS
+.An nishi Aq Mt nishi@nishi.boats
+.Pp
+This manual page has been written by
+.An Izuru Yakumo Aq Mt yakumo.izuru@chaotic.ninja

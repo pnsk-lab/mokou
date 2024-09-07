@@ -1,0 +1,26 @@
+.Dd $Mdocdate$
+.Dt MOKOUCTL 8
+.Os
+.Sh NAME
+.Nm mokouctl
+.Nd Control services started by Mokou
+.Sh SYNOPSIS
+.Nm
+.Op reload
+.Op start Ar service
+.Op stop Ar service
+.Sh DESCRIPTION
+.Bl -tag
+.It reload
+Reload the service directory
+(by default @PREFIX@/etc/mokou)
+.It start Ar service
+Start the service.
+.It stop Ar service
+Stop the service by sending a TERM signal
+.El
+.Sh AUTHORS
+.An nishi Aq Mt nishi@nishi.boats
+.Pp
+This manual page has been written by
+.An Izuru Yakumo <yakumo.izuru@chaotic.ninja>
