@@ -10,6 +10,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <poll.h>
 
 #include <sys/types.h>
 #include <sys/socket.h>
@@ -52,8 +53,12 @@ void mk_server_loop(void){
 	cbuf[1] = 0;
 	char* str = malloc(1);
 	str[0] = 0;
+	struct pollfd pollfds[16 + 1];
+	pollfds[0].fd = server;
+	pollfds[0].events = POLLIN | POLLPRI;
 	while(1){
 		mk_log("Waiting for the connection");
+		int r = poll(pollfds, 16 + 1, 5000);
 		int cli = accept(server, (struct sockaddr*)&cun, &socklen);
 		send(cli, ver, strlen(ver), 0);
 		while(1){
