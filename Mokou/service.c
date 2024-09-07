@@ -98,6 +98,9 @@ void mk_service_scan(void){
 					char* exec = NULL;
 					char* stop = NULL;
 					char* pidfile = NULL;
+					uid_t uid = 0;
+					gid_t gid = 0;
+					bool bad = false;
 					
 					for(i = 0;; i++){
 						if(buffer[i] == '\n' || buffer[i] == 0){
@@ -127,6 +130,15 @@ void mk_service_scan(void){
 										}else if(strcmp(key, "stop") == 0){
 											if(stop != NULL) free(stop);
 											stop = mk_strdup(value);
+										}else if(strcmp(key, "user") == 0){
+											struct passwd* p = getpwnam(value);
+											if(p != NULL){
+												uid = p->pw_uid;
+												gid = p->pw_gid;
+											}else{
+												mk_log("Could not find the specified user");
+												bad = true;
+											}
 										}
 	
 										break;
@@ -140,7 +152,6 @@ void mk_service_scan(void){
 					}
 					fclose(f);
 
-					bool bad = false;
 					if(exec == NULL){
 						char* log = mk_strcat(desc == NULL ? path : desc, ": Missing exec");
 						mk_log(log);
@@ -174,6 +185,8 @@ void mk_service_scan(void){
 						serv->stop = stop != NULL ? mk_strdup(stop) : NULL;
 						serv->exec = mk_strdup(exec);
 						serv->pidfile = mk_strdup(pidfile);
+						serv->uid = uid;
+						serv->gid = gid;
 						serv->stopped = false;
 
 						struct mk_service** oldsrvs = services;
@@ -291,6 +304,10 @@ int mk_stop_service(const char* name){
 					int n = open("/dev/null", O_RDWR);
 					dup2(n, 1);
 					dup2(n, 2);
+					setgid(srv->gid);
+					setegid(srv->gid);
+					setuid(srv->uid);
+					seteuid(srv->uid);
 					execvp(pargv[0], pargv);
 					_exit(-1);
 				}else{
@@ -388,6 +405,10 @@ int mk_start_service(const char* name){
 				int n = open("/dev/null", O_RDWR);
 				dup2(n, 1);
 				dup2(n, 2);
+				setgid(srv->gid);
+				setegid(srv->gid);
+				setuid(srv->uid);
+				seteuid(srv->uid);
 				execvp(pargv[0], pargv);
 				_exit(-1);
 			}else{

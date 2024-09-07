@@ -4,6 +4,7 @@
 #define __MK_SERVICE_H__
 
 #include <stdbool.h>
+#include <pwd.h>
 
 struct mk_service {
 	char* name;
@@ -12,6 +13,8 @@ struct mk_service {
 	char* pidfile;
 	char* stop;
 	bool stopped;
+	uid_t uid;
+	gid_t gid;
 };
 
 void mk_service_scan(void);
