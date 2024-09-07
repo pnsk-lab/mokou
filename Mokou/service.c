@@ -208,7 +208,8 @@ const char* mk_errors[] = {
 	"Failed to start",
 	"Service is dead",
 	"Bad signal",
-	"Could not stop the service"
+	"Could not stop the service",
+	"Could not run the stop command"
 };
 
 int mk_stop_service(const char* name){
@@ -256,22 +257,7 @@ int mk_stop_service(const char* name){
 					log = mk_strcat("Sending SIG", sys_signame[sig]);
 					mk_log(log);
 					free(log);
-					bool dead = false;
 					kill(pid, sig);
-					for(i = 0; i < 3; i++){
-						if(kill(pid, 0) == -1){
-							mk_log("Process died");
-							dead = true;
-							break;
-						}else{
-							mk_log("Process is still alive");
-						}
-						if(i != 2) sleep(1);
-					}
-					if(!dead){
-						mk_log("Could not kill the process");
-						return 6;
-					}
 				}
 			}else{
 				char** pargv = malloc(sizeof(*pargv));
@@ -298,6 +284,46 @@ int mk_stop_service(const char* name){
 						if(srv->exec[i] == 0) break;
 					}
 				}
+
+				bool fail = false;
+				pid_t pid = fork();
+				if(pid == 0){
+					int n = open("/dev/null", O_RDWR);
+					dup2(n, 1);
+					dup2(n, 2);
+					execvp(pargv[0], pargv);
+					_exit(-1);
+				}else{
+					int status;
+					waitpid(pid, &status, 0);
+					if(WEXITSTATUS(status) != 0) fail = true;
+				}
+
+				for(i = 0; pargv[i] != NULL; i++) free(pargv[i]);
+				free(pargv);
+
+				if(fail){
+					mk_log("Failed to run stop command");
+					return 7;
+				}
+			}
+			
+			usleep(100);
+
+			bool dead = false;
+			for(i = 0; i < 3; i++){
+				if(kill(pid, 0) == -1){
+					mk_log("Process died");
+					dead = true;
+					break;
+				}else{
+					mk_log("Process is still alive");
+				}
+				if(i != 2) sleep(1);
+			}
+			if(!dead){
+				mk_log("Could not kill the process");
+				return 6;
 			}
 
 			srv->stopped = true;

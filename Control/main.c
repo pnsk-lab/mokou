@@ -62,6 +62,7 @@ int main(int argc, char** argv){
 		if(connect(sock, (struct sockaddr*)&sun, sizeof(sun)) == -1){
 			fprintf(stderr, "Connection failure: %s\n", strerror(errno));
 			close(sock);
+			return 1;
 		}
 		send(sock, msg, strlen(msg), 0);
 		
